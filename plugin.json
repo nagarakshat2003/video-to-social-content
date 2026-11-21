@@ -1,0 +1,12 @@
+{
+  "name": "video-to-social-content",
+  "displayName": "Video to Social Content",
+  "version": "1.0.0",
+  "description": "Find the best moments from videos to produce 9:16 vertical reels, 3:4 photo carousels, and engaging social media captions.",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "/video-to-social-content extract 9:16 reels and 3:4 photo carousels from my video",
+    "Find the top action and dialogue moments in this video and generate Instagram captions",
+    "Process this footage into vertical TikTok clips and photos with captions.md"
+  ]
+}

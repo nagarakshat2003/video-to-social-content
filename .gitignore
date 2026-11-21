@@ -1,0 +1,9 @@
+outputs/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+*.log
+candidate_*.png
+candidate_*.jpg
+frame_*.jpg
