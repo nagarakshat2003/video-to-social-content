@@ -33,7 +33,10 @@ The plugin utilizes local command-line tools executed via the host agent:
 2. **Python 3** (Required for `crop_math.py`):
    - Standard Python 3.8+ runtime.
 3. **Whisper / Faster-Whisper** (Optional, for automatic dialogue transcription):
-   - `pip install whisper-openai` or `pip install faster-whisper`
+   - `pip install openai-whisper` or `pip install faster-whisper`
+4. **yt-dlp** (Optional, only for YouTube / URL inputs):
+   - `pipx install "yt-dlp[default]"`, `pip install -U "yt-dlp[default]"`, or `brew install yt-dlp` (distro packages are usually too old for YouTube)
+   - YouTube also needs a JavaScript runtime: [Deno](https://deno.com) (used by default) or Node.js (pass `--js-runtimes node`)
 
 ---
 
@@ -43,14 +46,23 @@ The plugin utilizes local command-line tools executed via the host agent:
 Clone or copy the directory to your Antigravity plugins directory or workspace:
 ```bash
 # User-scoped global plugin
-git clone https://github.com/your-org/video-to-social-content ~/.gemini/config/plugins/video-to-social-content
+git clone https://github.com/nagarakshat2003/video-to-social-content ~/.gemini/config/plugins/video-to-social-content
 ```
 Or discover it directly from the Agent Marketplace.
 
 ### Anthropic Claude Code
-Install the plugin directly using the Claude CLI:
+The repository ships its own marketplace (`.claude-plugin/marketplace.json`). Install it from inside Claude Code:
+```text
+/plugin install video-to-social-content --marketplace nagarakshat2003/video-to-social-content
+```
+On older Claude Code versions, add the marketplace first and then install:
+```text
+/plugin marketplace add nagarakshat2003/video-to-social-content
+/plugin install video-to-social-content@video-to-social-content-marketplace
+```
+For local development, load the working copy directly:
 ```bash
-claude plugin install /path/to/video-to-social-content
+claude --plugin-dir /path/to/video-to-social-content
 ```
 
 ### OpenAI Codex
@@ -60,7 +72,7 @@ Install locally or register the repository as a marketplace:
 codex plugin install /path/to/video-to-social-content
 
 # Or add repository marketplace
-codex plugin marketplace add your-org/video-to-social-content --ref main
+codex plugin marketplace add nagarakshat2003/video-to-social-content --ref main
 codex plugin add video-to-social-content@video-to-social-content-marketplace
 ```
 
@@ -104,7 +116,8 @@ outputs/<video-name>/
 video-to-social-content/
 ├── plugin.json                              # Antigravity plugin manifest
 ├── .claude-plugin/
-│   └── plugin.json                          # Claude Code plugin manifest
+│   ├── plugin.json                          # Claude Code plugin manifest
+│   └── marketplace.json                     # Claude Code marketplace catalog
 ├── .codex-plugin/
 │   └── plugin.json                          # Codex plugin manifest
 ├── .agents/

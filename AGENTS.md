@@ -18,14 +18,14 @@ These rules apply whenever handling video processing, cropping, and social media
 ## 3. Resolution & Quality Integrity
 - **No silent upscaling:** Keep native source pixel density.
 - Always report the final output resolution.
-- If final 9:16 reel resolution is below 1080x1920 (e.g. source was 1080p landscape yielding a ~608x1080 crop), explicitly inform the user and offer blurred-background canvas fitting (`split [a][b]; [a] scale=1080:1920:force_original_aspect_ratio=increase,boxblur=20:20 [bg]; [bg][b] overlay=(W-w)/2:(H-h)/2`) or upscaling as an optional next step.
-- Reel encoding standard: `libx264`, `-crf 16`, `-preset slow`, `aac`, `-movflags +faststart`, with short audio fades (`afade=t=in...`, `afade=t=out...`).
+- If final 9:16 reel resolution is below 1080x1920 (e.g. source was 1080p landscape yielding a ~608x1080 crop), explicitly inform the user and offer blurred-background canvas fitting (`[0:v]split[a][b];[a]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:20[bg];[bg][b]overlay=(W-w)/2:(H-h)/2`, full command in `SKILL.md`) or upscaling as an optional next step.
+- Reel encoding standard: `libx264`, `-crf 16`, `-preset slow`, `aac`, `-movflags +faststart`, with short audio fades applied through `-af` (`afade=t=in...`, `afade=t=out...`), never inside the `-vf` video chain.
 - Photo extraction standard: PNG or high-quality JPEG (`-q:v 1`).
 
 ## 4. Rigorous Output Verification
 - Every generated reel and photo must be verified before presenting to the user:
   - Check dimensions, aspect ratio, duration, and audio stream presence with `ffprobe`.
-  - Extract the first, middle, and last frame of each reel and visually inspect them to confirm framing and head room.
+  - Extract the first, middle, and last frame of each reel and visually inspect them with your image viewer (`Read`, `read_file`, or equivalent) to confirm framing and head room.
   - Inspect each candidate photo for sharpness, lighting, open eyes, and absence of motion blur.
 
 ## 5. Factual Accuracy & Attribution

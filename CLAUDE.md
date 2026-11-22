@@ -10,7 +10,7 @@ This repository houses the **Video to Social Content** plugin for turning video 
   ```
 - **Inspect Video Metadata:**
   ```bash
-  ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,duration,codec_name -of json "source.mp4"
+  ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,codec_name:stream_side_data=rotation:format=duration -of json "source.mp4"
   ```
 
 ## Core Behavioral Guidelines
