@@ -30,16 +30,31 @@ Run preflight checks using your environment's shell command tool (`run_command`,
    ffmpeg -version && ffprobe -version
    ```
    *If missing:* Offer to install via package manager (`sudo apt-get install ffmpeg`, `brew install ffmpeg`, or `winget install Gyan.FFmpeg`).
-2. **Verify Whisper / Audio transcription (optional but recommended):**
+2. **Verify yt-dlp (URL inputs only):**
+   ```bash
+   yt-dlp --version
+   deno --version || node --version
+   ```
+   *If missing:* Offer to install it with its YouTube challenge solver (`pipx install "yt-dlp[default]"`, `pip install -U "yt-dlp[default]"`, or `brew install yt-dlp`), or ask the user for a local copy of the video. Distro packages (e.g. `apt install yt-dlp`) are usually too old for YouTube.
+   YouTube also requires a JavaScript runtime. yt-dlp uses Deno by default; if only Node.js is available, add `--js-runtimes node` to the download command. Without a runtime and solver, yt-dlp warns "n challenge solving failed" and formats may be missing.
+3. **Verify Whisper / Audio transcription (optional but recommended):**
    ```bash
    python3 -c "import whisper; print('Whisper ready')" 2>/dev/null || python3 -c "import faster_whisper; print('Faster-Whisper ready')" 2>/dev/null || echo "Whisper not installed"
    ```
    *If unavailable:* Proceed with visual sampling and embedded subtitles/audio waveform analysis, noting that automatic speech recognition was skipped.
-3. **Workspace Isolation:**
+4. **Workspace Isolation:**
    Create output directories under `outputs/<video-name>/`:
    ```bash
    mkdir -p "outputs/<video-name>/reels" "outputs/<video-name>/photos" "outputs/<video-name>/samples"
    ```
+5. **Fetch URL Inputs:**
+   If the input is a YouTube (or other supported) URL, download it into the workspace and use the downloaded file as `source.mp4` for every later step:
+   ```bash
+   yt-dlp -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b" --merge-output-format mp4 \
+     -o "outputs/<video-name>/source.%(ext)s" "<URL>"
+   ```
+   Add `--js-runtimes node` when Deno is not installed. YouTube may serve AV1 video; that is fine, since every render re-encodes to H.264.
+   Third-party footage triggers the copyright reminder in the deliverables (see `AGENTS.md`, section 6).
 
 ---
 
@@ -49,9 +64,12 @@ Never work blindly on the video. Gather concrete metrics and sample evidence:
 
 1. **Inspect Metadata with `ffprobe`:**
    ```bash
-   ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,duration,codec_name -of json "source.mp4"
+   ffprobe -v error -select_streams v:0 \
+     -show_entries stream=width,height,r_frame_rate,codec_name:stream_side_data=rotation:format=duration \
+     -of json "source.mp4"
    ```
-   Extract width ($W$), height ($H$), duration ($T$), frame rate, and rotation metadata.
+   Extract width ($W$), height ($H$), duration ($T$, from `format.duration`, which is present even when the stream has none, e.g. MKV/WebM), frame rate, and rotation.
+   - **Rotation:** If `side_data_list` reports `rotation` of `90`, `-90`, or `270` (typical for phone footage), ffmpeg auto-rotates frames on decode, so swap the values: use $W$ = reported height and $H$ = reported width for all crop math and filters.
 
 2. **Transcribe Audio:**
    Extract dialogue using Whisper or an audio-to-text script. Note exact timestamp intervals for high-energy dialogue, quotes, jokes, or emotional exchanges.
@@ -59,7 +77,7 @@ Never work blindly on the video. Gather concrete metrics and sample evidence:
 3. **Detect Scene Changes & Sample Frames:**
    Extract candidate scene cuts:
    ```bash
-   ffmpeg -i "source.mp4" -vf "select='gt(scene,0.3)',showinfo" -f null - 2> scenes.log
+   ffmpeg -i "source.mp4" -vf "select='gt(scene,0.3)',showinfo" -f null - 2> "outputs/<video-name>/samples/scenes.log"
    ```
    Sample periodic frames (1 frame per 2–3s for short videos, 1 per 5–10s for longer footage):
    ```bash
@@ -86,7 +104,7 @@ Never work blindly on the video. Gather concrete metrics and sample evidence:
 - **Quality criteria:** Sharp focus, no motion blur, no half-closed eyes or mid-speech mouth shapes, excellent lighting, expressive facial expressions.
 - Extract 3–5 neighboring candidate frames around the key moment and inspect them to select the single best still:
   ```bash
-  ffmpeg -ss 00:01:24.500 -i "source.mp4" -vframes 5 "candidate_%02d.png"
+  ffmpeg -ss 00:01:24.500 -i "source.mp4" -vframes 5 "outputs/<video-name>/samples/candidate_%02d.png"
   ```
 - Group selected photos into 1–3 cohesive carousel sets (e.g., 3–4 photos per theme).
 
@@ -112,6 +130,10 @@ python3 "${CLAUDE_PLUGIN_ROOT:-.}/skills/video-to-social-content/scripts/crop_ma
    - Crop height = source height $H$.
    - Target width: $w_{3:4} = \lfloor H \times 3 / 4 \rfloor$. Ensure $w_{3:4}$ is an even integer:
      $$w = 2 \times \lfloor w_{3:4} / 2 \rfloor$$
+3. **Sources Narrower Than the Target** (e.g. a 4:5 portrait clip going to 9:16, or 9:16 footage going to 3:4):
+   - Crop width = source width $W$; crop height = $W \times 16 / 9$ (9:16) or $W \times 4 / 3$ (3:4), rounded down to an even integer.
+   - Set $y = \text{clamp}(Y_{subject} - h / 2, 0, H - h)$ and $x = 0$.
+   - `crop_math.py` makes this choice automatically: it compares $W/H$ against the target ratio and crops whichever dimension overflows, so the crop never exceeds the source frame. Pass `--subject-y` to place the vertical offset.
 
 ### Determining Horizontal Offset ($x$)
 - Inspect sampled frames during the clip's timestamp range.
@@ -123,21 +145,29 @@ python3 "${CLAUDE_PLUGIN_ROOT:-.}/skills/video-to-social-content/scripts/crop_ma
 
 - **Render Reel:**
   ```bash
-  ffmpeg -ss <start_time> -to <end_time> -i "source.mp4" \
-    -vf "crop=<w>:<h>:<x>:0,afade=t=in:ss=0:d=0.3,afade=t=out:st=<duration_minus_0.5>:d=0.5" \
+  ffmpeg -ss <start_time> -i "source.mp4" -t <duration> \
+    -vf "crop=<w>:<h>:<x>:<y>" \
+    -af "afade=t=in:st=0:d=0.3,afade=t=out:st=<duration_minus_0.5>:d=0.5" \
     -c:v libx264 -crf 16 -preset slow -c:a aac -b:a 192k -movflags +faststart \
     "outputs/<video-name>/reels/reel_01_<genre>.mp4"
   ```
+  Video filters go in `-vf` and audio fades in `-af`; mixing them in one `-vf` chain makes ffmpeg fail with "Media type mismatch". Fade timestamps are relative to the clip start, so `<duration_minus_0.5>` is the clip length minus 0.5s.
 - **Extract & Crop Photo:**
   ```bash
   ffmpeg -ss <timestamp> -i "source.mp4" -vframes 1 \
-    -vf "crop=<w>:<h>:<x>:0" -q:v 1 \
+    -vf "crop=<w>:<h>:<x>:<y>" -q:v 1 \
     "outputs/<video-name>/photos/photo_01_<theme>.jpg"
   ```
 
 ### Resolution Reporting Rule
 - Report the final output resolution (e.g. $608 \times 1080$).
-- If less than $1080 \times 1920$, notify the user and offer an optional blurred-background 1080x1920 canvas fit as a next step.
+- If less than $1080 \times 1920$, notify the user and offer an optional blurred-background 1080x1920 canvas fit as a next step. Only run it after the user agrees; the reel itself stays at native size, centered on a blurred fill:
+  ```bash
+  ffmpeg -i "outputs/<video-name>/reels/reel_01_<genre>.mp4" \
+    -filter_complex "[0:v]split[a][b];[a]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=20:20[bg];[bg][b]overlay=(W-w)/2:(H-h)/2" \
+    -c:v libx264 -crf 16 -preset slow -c:a copy -movflags +faststart \
+    "outputs/<video-name>/reels/reel_01_<genre>_1080x1920.mp4"
+  ```
 
 ---
 
@@ -147,10 +177,11 @@ Before presenting deliverables to the user:
 1. Run `ffprobe` on each generated reel and photo to verify dimensions, aspect ratio, frame rate, and audio stream.
 2. Extract the first, middle, and last frame of each reel:
    ```bash
-   ffmpeg -ss <start> -i reel.mp4 -vframes 1 frame_start.jpg
-   ffmpeg -ss <mid> -i reel.mp4 -vframes 1 frame_mid.jpg
-   ffmpeg -ss <end> -i reel.mp4 -vframes 1 frame_end.jpg
+   ffmpeg -i reel.mp4 -vframes 1 "outputs/<video-name>/samples/frame_start.jpg"
+   ffmpeg -ss <duration_divided_by_2> -i reel.mp4 -vframes 1 "outputs/<video-name>/samples/frame_mid.jpg"
+   ffmpeg -sseof -0.1 -i reel.mp4 -vframes 1 "outputs/<video-name>/samples/frame_end.jpg"
    ```
+   Use `-sseof` for the end frame: seeking to exactly the clip duration returns no frame.
 3. Visually inspect the images to ensure subjects are centered, head room is comfortable, and on-screen graphics won't obstruct facial features.
 
 ---
