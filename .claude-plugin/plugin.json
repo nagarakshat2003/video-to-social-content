@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/hesreallyhim/claude-code-json-schema/main/schemas/plugin.schema.json",
+  "name": "video-to-social-content",
+  "displayName": "Video to Social Content",
+  "version": "1.0.0",
+  "description": "Find the best moments from videos to produce 9:16 vertical reels, 3:4 photo carousels, and engaging social media captions.",
+  "author": {
+    "name": "Antigravity Team"
+  },
+  "license": "MIT",
+  "keywords": [
+    "video",
+    "reels",
+    "shorts",
+    "tiktok",
+    "ffmpeg",
+    "social-media"
+  ]
+}
