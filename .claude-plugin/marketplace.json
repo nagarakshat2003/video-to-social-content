@@ -1,0 +1,15 @@
+{
+  "name": "video-to-social-content-marketplace",
+  "owner": {
+    "name": "Akshat Nagar"
+  },
+  "plugins": [
+    {
+      "name": "video-to-social-content",
+      "source": "./",
+      "description": "Find the best moments from videos to produce 9:16 vertical reels, 3:4 photo carousels, and engaging social media captions.",
+      "version": "1.0.0",
+      "category": "Creative Tools"
+    }
+  ]
+}
