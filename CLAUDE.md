@@ -2,22 +2,31 @@
 
 This repository houses the **Video to Social Content** plugin for turning video footage and URLs into platform-ready 9:16 vertical reels, 3:4 photo carousels, and engaging captions.
 
-## Quick Reference Commands
+## Behavioural rules
 
-- **Run Crop Calculator:**
-  ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT:-.}/skills/video-to-social-content/scripts/crop_math.py" --width <W> --height <H> --ratio 9:16 --subject-x <X>
-  ```
-- **Inspect Video Metadata:**
-  ```bash
-  ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,codec_name:stream_side_data=rotation:format=duration -of json "source.mp4"
-  ```
+The rules for handling video (non-destructive outputs, subject-aware cropping, encoding, verification, factual integrity, ethics) live in one place and are imported here:
 
-## Core Behavioral Guidelines
+@AGENTS.md
 
-1. **Non-Destructive Operations:** Never modify the original video source file. Always write outputs to `outputs/<video-name>/reels/`, `outputs/<video-name>/photos/`, and `outputs/<video-name>/captions.md`.
-2. **Subject-Aware Cropping (Never Blind Center-Crop):** Inspect sampled frames to locate primary subjects/faces and compute crop offset $x$. Use `crop_math.py` to ensure even integer pixel bounds.
-3. **Encoding Quality:** Use `libx264`, `-crf 16`, `-preset slow`, `aac`, `-movflags +faststart`, with short audio fades (`afade`).
-4. **Rigorous Verification:** Verify dimensions, aspect ratios, and audio presence with `ffprobe`. Extract and visually inspect start, middle, and end frames before completing tasks.
-5. **Factual Integrity:** Never invent dialogue, speaker names, quotes, or locations not present in the footage.
-6. **Ethics & Safety:** Never clip minors in sensitive contexts. Tag mature themes/violence and include copyright reminders for third-party media.
+## Repository layout
+
+- `skills/video-to-social-content/SKILL.md` — the workflow the agent follows.
+- `skills/video-to-social-content/scripts/` — the pipeline (standard library only, Python 3.8+): `prepare.py`, `analyze.py`, `track_subject.py`, `plan.py`, `render.py`, `verify.py`, `captions.py`, plus `common.py`, `probe.py`, `crop_math.py`.
+- `skills/video-to-social-content/references/` — detail loaded on demand (plan format, caption guidelines, manual fallback commands).
+- `tests/` — pytest suite using generated clips; `evals/` — end-to-end plugin eval cases.
+
+## Development commands
+
+```bash
+uv venv .venv && uv pip install --python .venv/bin/python -r requirements-dev.txt
+.venv/bin/python -m pytest tests -q
+python3 tools/sync_rules.py          # after editing AGENTS.md (CI runs --check)
+claude plugin validate .
+```
+
+## Conventions
+
+- Put mechanical work in scripts, not in SKILL.md prose; SKILL.md should only tell the agent which script to run and what to judge.
+- Scripts print JSON, exit non-zero on failure, and must not modify the source video.
+- Every script change needs a test in `tests/`.
+- Edit `AGENTS.md` only, then run `tools/sync_rules.py`; never edit `rules/AGENTS.md` by hand.
