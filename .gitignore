@@ -7,3 +7,6 @@ Thumbs.db
 candidate_*.png
 candidate_*.jpg
 frame_*.jpg
+.venv/
+.pytest_cache/
+evals/results/
