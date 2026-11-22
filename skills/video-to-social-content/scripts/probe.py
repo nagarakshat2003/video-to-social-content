@@ -35,17 +35,23 @@ def _fps(stream: Dict[str, Any]) -> Optional[float]:
     return None
 
 
+def _normalize_rotation(degrees: float) -> int:
+    """Map any rotation to (-180, 180], so 270 and -90 (reported by different ffmpeg versions) agree."""
+    value = int(round(degrees)) % 360
+    return value - 360 if value > 180 else value
+
+
 def _rotation(stream: Dict[str, Any]) -> int:
     for item in stream.get("side_data_list", []) or []:
         if "rotation" in item:
             try:
-                return int(float(item["rotation"]))
+                return _normalize_rotation(float(item["rotation"]))
             except (TypeError, ValueError):
                 pass
     rotate = (stream.get("tags") or {}).get("rotate")  # ffmpeg < 5 stores it as a tag
     if rotate is not None:
         try:
-            return int(float(rotate))
+            return _normalize_rotation(float(rotate))
         except ValueError:
             pass
     return 0

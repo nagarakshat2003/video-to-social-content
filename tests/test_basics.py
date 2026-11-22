@@ -100,3 +100,12 @@ def test_prepare_local_file_is_not_copied(tmp_path, clips):
     assert all((ws / d).is_dir() for d in ("reels", "photos", "samples"))
     assert not list(ws.glob("source.*"))
     assert result["reel_resolution"] == "202x360" and result["reel_below_1080x1920"]
+
+
+@pytest.mark.parametrize("raw,expected", [(0, 0), (90, 90), (-90, -90), (270, -90), (-270, 90), (180, 180),
+                                          (-180, 180), (360, 0), ("90.0", 90)])
+def test_rotation_is_normalized(raw, expected):
+    from probe import _rotation
+
+    assert _rotation({"side_data_list": [{"rotation": raw}]}) == expected
+    assert _rotation({"tags": {"rotate": str(raw)}}) == expected
