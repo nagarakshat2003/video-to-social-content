@@ -1,0 +1,19 @@
+{
+  "name": "video-to-social-content-marketplace",
+  "interface": {
+    "displayName": "Video to Social Content Marketplace"
+  },
+  "plugins": [
+    {
+      "name": "video-to-social-content",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE"
+      },
+      "category": "Creative Tools"
+    }
+  ]
+}

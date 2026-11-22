@@ -1,0 +1,18 @@
+{
+  "name": "video-to-social-content",
+  "version": "1.0.0",
+  "description": "Find the best moments from videos to produce 9:16 vertical reels, 3:4 photo carousels, and engaging social media captions.",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Video to Social Content",
+    "shortDescription": "Extract reels and photo stills",
+    "developerName": "Antigravity Team",
+    "category": "Creative Tools",
+    "capabilities": [
+      "Interactive"
+    ],
+    "defaultPrompt": "/video-to-social-content extract 9:16 reels and 3:4 photo carousels from my video",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/icon.png"
+  }
+}

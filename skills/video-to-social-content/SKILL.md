@@ -9,8 +9,11 @@ Processes video files or YouTube URLs into viral-ready vertical 9:16 reels and 3
 
 ## Trigger & Scope
 
-- **Invocation:** Triggered via the `/video-to-social-content` slash command or whenever a user asks to convert, slice, or extract reels, shorts, or stills from a video.
+- **Invocation:** Triggered via the `/video-to-social-content` slash command, `$video-to-social-content`, or whenever a user asks to convert, slice, or extract reels, shorts, or stills from a video.
 - **Inputs:** Local video file path (e.g., `.mp4`, `.mov`, `.mkv`) or YouTube URL. Any accompanying prompt instructions (focus, genre preferences, platform, tone, clip count) override defaults.
+- **Execution Mode:**
+  - **Single-Agent (Codex / Direct):** The primary agent executes the steps below sequentially using shell and file tools.
+  - **Subagent Delegation (Antigravity / Claude Code):** The coordinator may delegate slicing and verification to the `video-editor` subagent.
 - **Default Targets:**
   - **Reels:** 3–6 vertical clips (15–60 seconds, hard cap 90s).
   - **Photos:** 6–10 stills grouped into 1–3 carousel posts (3–4 photos per post).
@@ -20,22 +23,22 @@ Processes video files or YouTube URLs into viral-ready vertical 9:16 reels and 3
 
 ## Step 0: Tooling & Preflight Checks
 
-Run preflight checks using `run_command` in PowerShell or Bash:
+Run preflight checks using your environment's shell command tool (`run_command`, `Bash`, or native CLI):
 
 1. **Verify ffmpeg & ffprobe:**
-   ```powershell
-   ffmpeg -version; ffprobe -version
+   ```bash
+   ffmpeg -version && ffprobe -version
    ```
-   *If missing:* Offer to install via `winget install Gyan.FFmpeg` or `choco install ffmpeg` on Windows, or use `python -m pip install imageio-ffmpeg`.
+   *If missing:* Offer to install via package manager (`sudo apt-get install ffmpeg`, `brew install ffmpeg`, or `winget install Gyan.FFmpeg`).
 2. **Verify Whisper / Audio transcription (optional but recommended):**
-   ```powershell
-   python -c "import whisper; print('Whisper ready')" 2>$null || python -c "import faster_whisper; print('Faster-Whisper ready')" 2>$null
+   ```bash
+   python3 -c "import whisper; print('Whisper ready')" 2>/dev/null || python3 -c "import faster_whisper; print('Faster-Whisper ready')" 2>/dev/null || echo "Whisper not installed"
    ```
-   *If unavailable:* Proceed with visual inspection and embedded subtitles/audio waveform analysis, noting that automatic speech recognition was skipped.
+   *If unavailable:* Proceed with visual sampling and embedded subtitles/audio waveform analysis, noting that automatic speech recognition was skipped.
 3. **Workspace Isolation:**
-   Create output directories under `outputs/<video-basename>/`:
-   ```powershell
-   New-Item -ItemType Directory -Force -Path "outputs/<video-name>/reels", "outputs/<video-name>/photos"
+   Create output directories under `outputs/<video-name>/`:
+   ```bash
+   mkdir -p "outputs/<video-name>/reels" "outputs/<video-name>/photos" "outputs/<video-name>/samples"
    ```
 
 ---
@@ -45,7 +48,7 @@ Run preflight checks using `run_command` in PowerShell or Bash:
 Never work blindly on the video. Gather concrete metrics and sample evidence:
 
 1. **Inspect Metadata with `ffprobe`:**
-   ```powershell
+   ```bash
    ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,duration,codec_name -of json "source.mp4"
    ```
    Extract width ($W$), height ($H$), duration ($T$), frame rate, and rotation metadata.
@@ -55,14 +58,14 @@ Never work blindly on the video. Gather concrete metrics and sample evidence:
 
 3. **Detect Scene Changes & Sample Frames:**
    Extract candidate scene cuts:
-   ```powershell
+   ```bash
    ffmpeg -i "source.mp4" -vf "select='gt(scene,0.3)',showinfo" -f null - 2> scenes.log
    ```
    Sample periodic frames (1 frame per 2–3s for short videos, 1 per 5–10s for longer footage):
-   ```powershell
+   ```bash
    ffmpeg -i "source.mp4" -vf "fps=1/3" -q:v 2 "outputs/<video-name>/samples/frame_%04d.jpg"
    ```
-   Generate a contact sheet or inspect candidate keyframes with `read_file` to visually verify camera composition and subject placement.
+   Inspect candidate keyframes with your file viewer / image tool (`read_file`, `Read`, or visual inspector) to visually verify camera composition and subject placement.
 
 4. **Construct the Timeline:**
    Build an internal timeline table:
@@ -82,7 +85,7 @@ Never work blindly on the video. Gather concrete metrics and sample evidence:
 ### B. Photos (3:4 ratio stills)
 - **Quality criteria:** Sharp focus, no motion blur, no half-closed eyes or mid-speech mouth shapes, excellent lighting, expressive facial expressions.
 - Extract 3–5 neighboring candidate frames around the key moment and inspect them to select the single best still:
-  ```powershell
+  ```bash
   ffmpeg -ss 00:01:24.500 -i "source.mp4" -vframes 5 "candidate_%02d.png"
   ```
 - Group selected photos into 1–3 cohesive carousel sets (e.g., 3–4 photos per theme).
@@ -92,6 +95,13 @@ Never work blindly on the video. Gather concrete metrics and sample evidence:
 ## Step 3: Subject-Aware Cropping (Never Blind Center-Crop)
 
 Never squash, stretch, or default to center-cropping.
+
+### Crop Calculation with `crop_math.py`
+Use the bundled `crop_math.py` script to calculate exact bounds and offsets:
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT:-.}/skills/video-to-social-content/scripts/crop_math.py" \
+  --width <W> --height <H> --ratio 9:16 --subject-x <X_subject>
+```
 
 ### Crop Mathematics (Landscape Source $W \times H$)
 1. **9:16 Vertical Reel Crop:**
@@ -112,16 +122,16 @@ Never squash, stretch, or default to center-cropping.
 ### FFmpeg Rendering Commands
 
 - **Render Reel:**
-  ```powershell
-  ffmpeg -ss <start_time> -to <end_time> -i "source.mp4" `
-    -vf "crop=<w>:<h>:<x>:0,afade=t=in:ss=0:d=0.3,afade=t=out:st=<duration_minus_0.5>:d=0.5" `
-    -c:v libx264 -crf 16 -preset slow -c:a aac -b:a 192k -movflags +faststart `
+  ```bash
+  ffmpeg -ss <start_time> -to <end_time> -i "source.mp4" \
+    -vf "crop=<w>:<h>:<x>:0,afade=t=in:ss=0:d=0.3,afade=t=out:st=<duration_minus_0.5>:d=0.5" \
+    -c:v libx264 -crf 16 -preset slow -c:a aac -b:a 192k -movflags +faststart \
     "outputs/<video-name>/reels/reel_01_<genre>.mp4"
   ```
 - **Extract & Crop Photo:**
-  ```powershell
-  ffmpeg -ss <timestamp> -i "source.mp4" -vframes 1 `
-    -vf "crop=<w>:<h>:<x>:0" -q:v 1 `
+  ```bash
+  ffmpeg -ss <timestamp> -i "source.mp4" -vframes 1 \
+    -vf "crop=<w>:<h>:<x>:0" -q:v 1 \
     "outputs/<video-name>/photos/photo_01_<theme>.jpg"
   ```
 
@@ -136,12 +146,12 @@ Never squash, stretch, or default to center-cropping.
 Before presenting deliverables to the user:
 1. Run `ffprobe` on each generated reel and photo to verify dimensions, aspect ratio, frame rate, and audio stream.
 2. Extract the first, middle, and last frame of each reel:
-   ```powershell
+   ```bash
    ffmpeg -ss <start> -i reel.mp4 -vframes 1 frame_start.jpg
    ffmpeg -ss <mid> -i reel.mp4 -vframes 1 frame_mid.jpg
    ffmpeg -ss <end> -i reel.mp4 -vframes 1 frame_end.jpg
    ```
-3. Inspect the images using `read_file` to ensure subjects are centered, head room is comfortable, and text/captions won't obstruct facial features.
+3. Visually inspect the images to ensure subjects are centered, head room is comfortable, and on-screen graphics won't obstruct facial features.
 
 ---
 
@@ -166,7 +176,7 @@ Before presenting deliverables to the user:
 
 | Output File | Type | Timestamp Range | Genre / Theme | Key Hook / Headline |
 | :--- | :--- | :--- | :--- | :--- |
-| [reel_01_insight.mp4](file:///C:/path/to/outputs/.../reels/reel_01_insight.mp4) | 9:16 Reel | 01:14 - 01:45 | Drama / Insight | "The $2M Mistake" |
-| [photo_01_speaker.jpg](file:///C:/path/to/outputs/.../photos/photo_01_speaker.jpg) | 3:4 Stills | 01:24 | Carousel 1 (1/3) | Keynote reaction |
+| [reel_01_insight.mp4](file:///path/to/outputs/.../reels/reel_01_insight.mp4) | 9:16 Reel | 01:14 - 01:45 | Drama / Insight | "The $2M Mistake" |
+| [photo_01_speaker.jpg](file:///path/to/outputs/.../photos/photo_01_speaker.jpg) | 3:4 Stills | 01:24 | Carousel 1 (1/3) | Keynote reaction |
 
 3. Include any required sensitive content warnings (violence/mature tags) or copyright notes.
