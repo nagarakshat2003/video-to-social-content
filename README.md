@@ -13,13 +13,12 @@ Engineered for universal compatibility across **Google Antigravity**, **Anthropi
 
 ## Features
 
-- **Script-driven pipeline:** every mechanical step (download, probe, crop, encode, verify, caption scaffold) is a tested Python script; the agent only makes the judgment calls (which moments, where the subject is, what the captions say) and writes a small `plan.json`.
-- **Fast evidence for the agent:** one ffmpeg pass produces contact sheets with timestamps, scene cuts, loudness and silences; an optional Whisper transcript adds word timings; ranked, sentence-aligned reel candidates give a shortlist.
-- **Subject-aware cropping (never blind center-crop):** optional face detection fills in the subject position, or a smooth pan when the subject moves, and flags clips that should be split. Rotated phone footage is handled automatically.
-- **Quality-preserving encoding:** `libx264` CRF 16, preset slow, yuv420p, AAC 192k, faststart, audio fades; no letterboxing or squashing; an optional 1080x1920 blurred-background canvas.
-- **Automatic verification:** size, aspect ratio, codec, duration, audio, faststart and blank-frame checks for every output, plus start/mid/end review sheets.
-- **Honest captions:** `captions.md` is scaffolded with file links, timestamps, transcript excerpts, source attribution and copyright reminders; a check refuses to pass while anything is left unfilled.
-- **Content ethics & copyright:** flags sensitive themes with monetization warnings and adds copyright notices for third-party media.
+- **Subject-Aware Cropping (Never Blind Center-Crop):** Analyzes subject focal coordinates ($X_{subject}$) and dynamically aligns the 9:16 and 3:4 crop windows using the bundled `crop_math.py`.
+- **Multi-Genre Moments:** Identifies contrasting timeline beats (high-energy action, insightful dialogue, humor, emotional peaks).
+- **Quality-Preserving Encoding:** Encodes with `libx264`, CRF 16, slow presets, and audio fades (`afade`) without letterboxing or squashing.
+- **Narrative Storytelling & Captions:** Generates scroll-stopping hooks, CTAs, relevant hashtags, on-screen text ideas, and multi-slide carousel stories in `captions.md`.
+- **Pre-Delivery Quality Verification:** Checks dimensions, aspect ratios, audio streams with `ffprobe`, and extracts start/mid/end frames before completing tasks.
+- **Content Ethics & Copyright Disclaimers:** Flags sensitive themes/violence with monetization warnings and includes copyright notices for third-party media.
 
 ---
 
@@ -31,10 +30,11 @@ The plugin utilizes local command-line tools executed via the host agent:
    - **Linux:** `sudo apt-get install ffmpeg`
    - **macOS:** `brew install ffmpeg`
    - **Windows:** `winget install Gyan.FFmpeg` or `choco install ffmpeg`
-2. **Python 3.8+** (Required): the scripts use only the standard library.
-3. **Faster-Whisper** (Optional, for transcripts with word timings): `pip install faster-whisper` (or `openai-whisper`). Without it, the agent works from contact sheets, scenes and loudness, or from an `.srt`/`.vtt` file passed to `analyze.py --subtitles`.
-4. **OpenCV** (Optional, for automatic subject positions): `pip install opencv-python-headless`. Without it, the agent reads positions off the contact sheets.
-5. **yt-dlp** (Optional, only for YouTube / URL inputs):
+2. **Python 3** (Required for `crop_math.py`):
+   - Standard Python 3.8+ runtime.
+3. **Whisper / Faster-Whisper** (Optional, for automatic dialogue transcription):
+   - `pip install openai-whisper` or `pip install faster-whisper`
+4. **yt-dlp** (Optional, only for YouTube / URL inputs):
    - `pipx install "yt-dlp[default]"`, `pip install -U "yt-dlp[default]"`, or `brew install yt-dlp` (distro packages are usually too old for YouTube)
    - YouTube also needs a JavaScript runtime: [Deno](https://deno.com) (used by default) or Node.js (pass `--js-runtimes node`)
 
@@ -104,11 +104,7 @@ outputs/<video-name>/
 │   ├── photo_01_slide1.jpg
 │   ├── photo_02_slide2.jpg
 │   └── photo_03_slide3.jpg
-├── samples/            # contact sheets, sample frames, verification review sheets
-├── analysis/           # transcript, scenes, loudness, silences, reel candidates
-├── meta.json           # probed source metadata (display size, duration, audio)
-├── plan.json           # the agent's choices: clips, photos, subject positions
-├── verify_report.json
+├── samples/
 └── captions.md
 ```
 
@@ -141,32 +137,9 @@ video-to-social-content/
 │   └── video-editor.md                      # Video slicing subagent (Antigravity & Claude)
 └── skills/
     └── video-to-social-content/
-        ├── SKILL.md                         # Workflow: which script to run, what to judge
-        ├── references/                      # Loaded on demand: plan format, captions, manual fallback
-        └── scripts/                         # Pipeline (standard library only)
-            ├── prepare.py                   # Preflight, URL download, workspace, probe
-            ├── analyze.py                   # Contact sheets, scenes, loudness, transcript, candidates
-            ├── track_subject.py             # Face detection -> subject_x / subject_track
-            ├── plan.py                      # Validate plan.json, resolve crops and file names
-            ├── render.py                    # Encode reels, photos, optional canvas
-            ├── verify.py                    # Check outputs, build review sheets
-            ├── captions.py                  # Scaffold and check captions.md
-            └── common.py, probe.py, crop_math.py
-tests/                                       # pytest suite on generated clips
-evals/                                       # claude plugin eval cases
-tools/sync_rules.py                          # Keeps rules/AGENTS.md identical to AGENTS.md
-.github/workflows/ci.yml                     # Tests on ffmpeg 4.4 and 6.1, Python 3.8-3.13
-```
-
----
-
-## Development
-
-```bash
-uv venv .venv && uv pip install --python .venv/bin/python -r requirements-dev.txt
-.venv/bin/python -m pytest tests -q                       # unit + end-to-end tests on generated clips
-python3 tools/sync_rules.py                              # after editing AGENTS.md
-claude plugin eval . --scaffold --allow-tools Bash Write Edit --runs 1 --no-publish   # agent evals (costs tokens)
+        ├── SKILL.md                         # Portable procedural workflow
+        └── scripts/
+            └── crop_math.py                 # Mathematical crop geometry calculator
 ```
 
 ---

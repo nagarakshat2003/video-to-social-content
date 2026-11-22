@@ -1,3 +1,0 @@
-# Optional extras. The scripts detect them and fall back to manual work when absent.
-faster-whisper>=1.0        # analyze.py: transcript with word timestamps
-opencv-python-headless>=4.8  # track_subject.py: face detection for subject position
